@@ -212,28 +212,28 @@ We deliberately avoided SQLite, caching databases, machine learning/AI models, a
 
 ```mermaid
 flowchart TD
-    A[User runs: fj query] --> B[Zsh wrapper function: fj]
-    B --> C{Argument is -h or --help?}
-    C -->|Yes| D[Execute python3 folderjump.py --help directly]
-    D --> E[Exit 0]
-    C -->|No| F[Execute python3 folderjump.py query]
-    F --> G[Parse flags and resolve search roots]
-    G --> H{Valid search roots?}
-    H -->|No| I[Print error to stderr, Exit 2]
-    H -->|Yes| J[Scan directories using os.walk]
-    J --> K{Matches found?}
-    K -->|No| L[Print 'No matching folders' to stderr, Exit 1]
-    K -->|Yes| M[Sort and rank matches]
-    M --> N[Display numbered list on stderr]
-    N --> O{User selection}
-    O -->|Cancel 'q' / Ctrl+C| P[Print 'Search cancelled' to stderr, Exit 130]
-    O -->|Invalid choice| Q[Print error to stderr, Exit 1]
-    O -->|Valid choice| R{Is --dry-run?}
-    R -->|Yes| S[Print preview on stderr, Exit 0]
-    R -->|No| T[Print raw selected path to stdout, Exit 0]
-    T --> U[Zsh captures stdout into target_dir]
-    U --> V[Zsh executes: cd target_dir]
-    V --> W[Parent terminal directory changed]
+    A["User runs: fj query"] --> B["Zsh wrapper function: fj"]
+    B --> C{"Argument is -h or --help?"}
+    C -->|Yes| D["Execute python3 folderjump.py --help"]
+    D --> E["Exit 0"]
+    C -->|No| F["Execute python3 folderjump.py query"]
+    F --> G["Parse flags and resolve search roots"]
+    G --> H{"Valid search roots?"}
+    H -->|No| I["Print error to stderr, Exit 2"]
+    H -->|Yes| J["Scan directories using os.walk"]
+    J --> K{"Matches found?"}
+    K -->|No| L["Print No matching folders to stderr, Exit 1"]
+    K -->|Yes| M["Sort and rank matches"]
+    M --> N["Display numbered list on stderr"]
+    N --> O{"User selection"}
+    O -->|Cancel| P["Print Search cancelled to stderr, Exit 130"]
+    O -->|Invalid choice| Q["Print error to stderr, Exit 1"]
+    O -->|Valid choice| R{"Is dry-run?"}
+    R -->|Yes| S["Print preview on stderr, Exit 0"]
+    R -->|No| T["Print raw path to stdout, Exit 0"]
+    T --> U["Zsh captures stdout into target_dir"]
+    U --> V["Zsh executes: cd target_dir"]
+    V --> W["Parent terminal directory changed"]
 ```
 
 ### Components
@@ -245,6 +245,49 @@ flowchart TD
 | Automated Test Suite | Unit tests for filtering, case-insensitivity, special characters, error handling, dry-run, and Zsh parent-shell `cd` integration. | `test_folderjump.py` |
 
 ### Data flow
+
+```mermaid
+flowchart LR
+    subgraph UserSpace ["User Interaction"]
+        U1["User Types: fj query"]
+        U2["Keyboard Input: Choice / Cancel"]
+    end
+
+    subgraph ZshProcess ["Parent Zsh Shell"]
+        FN["fj function"]
+        SUB["target_dir capture"]
+        CD["Built-in: cd target_dir"]
+    end
+
+    subgraph PythonProcess ["Python Subprocess (folderjump.py)"]
+        PARSE["argparse: CLI flags"]
+        SCAN["os.walk: Directory scan"]
+        RANK["Sorting & Ranking"]
+        MENU["Interactive Prompt"]
+    end
+
+    subgraph FileSystem ["macOS File System"]
+        DIRS[("~/Documents, ~/Desktop, ~/Downloads, /Applications/MCA")]
+    end
+
+    subgraph Streams ["Output Streams"]
+        ERR["sys.stderr (Menu & Prompts)"]
+        OUT["sys.stdout (Selected Path)"]
+    end
+
+    U1 --> FN
+    FN --> PARSE
+    PARSE --> SCAN
+    SCAN <--> DIRS
+    SCAN --> RANK
+    RANK --> MENU
+    MENU --> ERR
+    ERR --> UserSpace
+    U2 --> MENU
+    MENU --> OUT
+    OUT --> SUB
+    SUB --> CD
+```
 
 The user invokes `fj <query>` in Zsh. The Zsh function invokes `folderjump.py`, which receives query terms and optional root flags. The Python program scans directories using `os.walk()`, ranks matching folders, and writes the menu to `sys.stderr` so it appears on screen without polluting standard output. Once the user enters a number, the selected directory path is printed to `sys.stdout`, where the Zsh wrapper captures it into a local variable and executes `cd "$target_dir"`.
 
